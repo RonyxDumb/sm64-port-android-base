@@ -1,6 +1,148 @@
-app/jni/SDL/include
-app/jni/SDL/src
-.gradle
-app/build
-app/.externalNativeBuild
-app/.cxx
+# ============================================================
+# Android / Gradle
+# ============================================================
+
+.gradle/
+build/
+**/build/
+
+local.properties
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Android Studio generated files
+captures/
+.externalNativeBuild/
+.cxx/
+**/.externalNativeBuild/
+**/.cxx/
+
+# ============================================================
+# Native / NDK build output
+# ============================================================
+
+obj/
+libs/
+**/obj/
+**/libs/
+
+*.o
+*.obj
+*.so
+*.a
+*.dll
+*.dylib
+*.exe
+
+# CMake generated files
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+compile_commands.json
+
+# ndk-build generated dependency files
+*.d
+*.dep
+
+# ============================================================
+# SDL
+# ============================================================
+
+# Lasciamoli, sono utili così risparmi tempo ed eviti errori
+# SDL source/include bundled locally and not tracked
+# app/jni/SDL/include/
+# app/jni/SDL/src/
+
+# SDL generated/native build files
+app/jni/SDL/build/
+app/jni/SDL/.cxx/
+app/jni/SDL/.externalNativeBuild/
+
+# ============================================================
+# APK / Android packages
+# ============================================================
+
+*.apk
+*.aab
+*.ap_
+*.aar
+
+# Signing files - NEVER commit private keys
+*.jks
+*.keystore
+keystore.properties
+
+# ============================================================
+# Generated Android files
+# ============================================================
+
+R.java
+BuildConfig.java
+
+# Resource / dex intermediates
+*.dex
+*.class
+
+# ============================================================
+# Logs / temporary files
+# ============================================================
+
+*.log
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~
+
+# ============================================================
+# Operating system files
+# ============================================================
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+Desktop.ini
+$RECYCLE.BIN/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Linux
+.directory
+
+# ============================================================
+# Visual Studio Code
+# ============================================================
+
+.vscode/
+
+# Keep optional shared VS Code settings if needed
+# !.vscode/settings.json
+# !.vscode/tasks.json
+# !.vscode/launch.json
+
+# ============================================================
+# Gradle wrapper
+# ============================================================
+
+# DO NOT ignore these:
+# gradlew
+# gradlew.bat
+# gradle/wrapper/gradle-wrapper.jar
+# gradle/wrapper/gradle-wrapper.properties
+
+# ============================================================
+# Project-specific generated files
+# ============================================================
+
+app/.externalNativeBuild/
+app/.cxx/
+app/build/
