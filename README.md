@@ -2,7 +2,7 @@
 
 Questo progetto è un port Android del codice sorgente ricostruito di Super Mario 64, basato su SDL2 e OpenGL ES 2.0.
 
-Include controlli touch multipiattaforma, audio funzionante, salvataggio dei progressi nella memoria interna dell'app e supporto per tastiere e controller esterni (testato con controller PS3).
+Include controlli touch multipiattaforma, audio funzionante, salvataggio dei progressi nella memoria interna dell'app e supporto per tastiere e controller esterni.
 
 # Branch
 
