@@ -29,7 +29,7 @@ In generale, se riesci già a compilare il port PC e disponi di Android SDK/NDK 
 ### Clonare il repository
 
 ```sh
-git clone --recursive https://github.com/VDavid003/sm64-port-android-base
+git clone --recursive https://github.com/RonyxDumb/sm64-android-port
 cd sm64-port-android-base
 ```
 
