@@ -16,8 +16,6 @@ Include controlli touch multipiattaforma, audio funzionante, salvataggio dei pro
 
 Segui le istruzioni del repository `sm64-port-android`.
 
-> Nota: la compilazione direttamente da Android è attualmente incompleta.
-
 ## Linux
 
 ### Installare le dipendenze
