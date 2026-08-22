@@ -99,7 +99,7 @@ pacman -S unzip
 ### Clonare il repository
 
 ```sh
-git clone --recursive https://github.com/VDavid003/sm64-port-android-base
+git clone --recursive https://github.com/RonyxDumb/sm64-android-port
 ```
 
 Entra quindi nella directory:
