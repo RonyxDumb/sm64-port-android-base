@@ -18,7 +18,7 @@ Servono:
 Repository:
 
 ```text
-https://github.com/VDavid003/sm64-port-android-base
+https://github.com/RonyxDumb/sm64-port-android-base
 ```
 
 ---
@@ -30,9 +30,15 @@ Aprire MSYS2 MinGW64:
 ```bash
 cd /c/Users/pipin/Desktop
 
-git clone --recursive https://github.com/VDavid003/sm64-port-android-base.git
+git clone --recursive https://github.com/RonyxDumb/sm64-port-android-base.git
 
 cd sm64-port-android-base
+
+git submodule sync --recursive
+git submodule update --init --recursive
+
+# Facoltativo: usa gli ultimi sorgenti del fork RonyxDumb/sm64-port-android
+git submodule update --remote app/jni/src
 ```
 
 È importante usare:
