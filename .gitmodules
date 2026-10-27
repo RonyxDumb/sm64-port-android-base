@@ -1,3 +1,4 @@
 [submodule "app/jni/src"]
 	path = app/jni/src
-	url = https://github.com/VDavid003/sm64-port-android.git
+	url = https://github.com/RonyxDumb/sm64-port-android.git
+	branch = master
