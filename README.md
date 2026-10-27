@@ -27,8 +27,14 @@ In generale, se riesci già a compilare il port PC e disponi di Android SDK/NDK 
 ### Clonare il repository
 
 ```sh
-git clone --recursive https://github.com/RonyxDumb/sm64-android-port
+git clone --recursive https://github.com/RonyxDumb/sm64-port-android-base.git
 cd sm64-port-android-base
+
+git submodule sync --recursive
+git submodule update --init --recursive
+
+# Facoltativo: aggiorna app/jni/src all'ultimo commit del branch master del fork.
+git submodule update --remote app/jni/src
 ```
 
 ### Copiare la baserom
@@ -97,13 +103,18 @@ pacman -S unzip
 ### Clonare il repository
 
 ```sh
-git clone --recursive https://github.com/RonyxDumb/sm64-android-port
+git clone --recursive https://github.com/RonyxDumb/sm64-port-android-base.git
 ```
 
 Entra quindi nella directory:
 
 ```sh
 cd sm64-port-android-base
+git submodule sync --recursive
+git submodule update --init --recursive
+
+# Facoltativo: per aggiornare i sorgenti del gioco all'ultimo commit master
+git submodule update --remote app/jni/src
 ```
 
 ### Copiare la baserom
@@ -164,7 +175,7 @@ app\build\outputs\apk\debug\app-debug.apk
 ### Clonare il repository
 
 ```sh
-git clone --recursive https://github.com/VDavid003/sm64-port-android-base
+git clone --recursive https://github.com/RonyxDumb/sm64-port-android-base.git
 ```
 
 ### Creare l'immagine Docker
