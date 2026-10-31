@@ -23,6 +23,16 @@ https://github.com/RonyxDumb/sm64-port-android-base
 
 ---
 
+
+## Correzioni della build (31 ottobre 2026)
+
+- **SDL2**: esegui `./getSDL.sh` dalla root in MSYS2 MinGW64. Lo script aggiornato prova il server SDL e, in caso di timeout, GitHub; può essere rieseguito su cartelle parzialmente preparate e non richiede `mklink` né privilegi amministrativi. Non serve creare manualmente junction o symlink.
+- **Java**: il wrapper è Gradle 7.1 e la configurazione prevista è JDK 11, **non** JDK 25. Su Windows imposta `JAVA_HOME` al percorso effettivo del JDK 11 e aggiungi `%JAVA_HOME%\\bin` al `PATH` nella stessa sessione CMD. Controlla `gradlew.bat --version` dalla root, non da `C:\\Users\\pipin`.
+- **Sorgenti del gioco**: il submodule iniziale non seleziona automaticamente `RonyxDumb/sm64-android-port`. Per usare il fork esegui `git -C app/jni/src fetch https://github.com/RonyxDumb/sm64-android-port.git main` e poi `git -C app/jni/src checkout --detach FETCH_HEAD`.
+- **Asset**: copia `baserom.us.z64` (ROM USA ottenuta legalmente) in `app/jni/src/`. In MSYS2 MinGW64 esegui `cd app/jni/src && make -j4 VERSION=us` prima di `gradlew.bat assembleDebug` se i file generati mancano.
+- **Libreria audiofile**: non è necessario installare `mingw-w64-x86_64-audiofile` con pacman. Il fork del gioco include `tools/audiofile`; il suo Makefile aggiornato impone di compilare `libaudiofile.a` prima di collegare `tabledesign`.
+- **APK**: da CMD nella root della base, `gradlew.bat assembleDebug`. Output atteso: `app/build/outputs/apk/debug/app-debug.apk`.
+
 ## 1. Clonare il repository
 
 Aprire MSYS2 MinGW64:
