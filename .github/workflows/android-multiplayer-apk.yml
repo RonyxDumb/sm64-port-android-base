@@ -84,6 +84,101 @@ jobs:
           path: app/jni/src
           persist-credentials: false
 
+      - name: Set up Python for private ROM download
+        if: steps.rom.outputs.ready == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Download private ROM from Google Drive
+        if: steps.rom.outputs.ready == 'true'
+        timeout-minutes: 6
+        shell: bash
+        env:
+          ROM_URL: ${{ secrets.SM64_ROM_DRIVE_URL }}
+          EXPECTED_SHA1: ${{ secrets.SM64_ROM_SHA1 }}
+          DRIVE_SERVICE_ACCOUNT_JSON: ${{ secrets.SM64_DRIVE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          set -euo pipefail
+          ROM_PATH="app/jni/src/baserom.us.z64"
+          rm -f "$ROM_PATH"
+
+          if [[ -n "$DRIVE_SERVICE_ACCOUNT_JSON" ]]; then
+            echo "Downloading ROM with authenticated Google Drive API (no public sharing required)."
+            python -m pip install --disable-pip-version-check --quiet 'google-auth>=2.20,<3' 'requests>=2.31,<3'
+            python - <<'PY'
+          import json, os, pathlib, re, sys
+          from google.oauth2 import service_account
+          from google.auth.transport.requests import AuthorizedSession
+
+          url = os.environ["ROM_URL"]
+          match = re.search(r"/file/d/([a-zA-Z0-9_-]+)", url) or re.search(r"[?&]id=([a-zA-Z0-9_-]+)", url)
+          if not match:
+              raise SystemExit("ROM_URL is not a supported Google Drive file link.")
+          try:
+              info = json.loads(os.environ["DRIVE_SERVICE_ACCOUNT_JSON"])
+              creds = service_account.Credentials.from_service_account_info(
+                  info, scopes=["https://www.googleapis.com/auth/drive.readonly"]
+              )
+              session = AuthorizedSession(creds)
+              response = session.get(
+                  "https://www.googleapis.com/drive/v3/files/" + match.group(1),
+                  params={"alt": "media"}, stream=True, timeout=(15, 45)
+              )
+              if response.status_code != 200:
+                  raise RuntimeError("Google Drive returned HTTP " + str(response.status_code))
+              dest = pathlib.Path("app/jni/src/baserom.us.z64")
+              with dest.open("wb") as output:
+                  for chunk in response.iter_content(chunk_size=1024 * 1024):
+                      if chunk:
+                          output.write(chunk)
+              response.close()
+          except Exception as exc:
+              pathlib.Path("app/jni/src/baserom.us.z64").unlink(missing_ok=True)
+              raise SystemExit(
+                  "Authenticated Drive download failed (" + str(type(exc).__name__) + "). "
+                  "Ensure Drive API is enabled and the ROM is shared with the service-account email."
+              ) from None
+          PY
+          else
+            echo "No Drive service account configured; trying an anonymously downloadable link."
+            python -m pip install --disable-pip-version-check --quiet 'gdown==5.2.0'
+            success=false
+            for attempt in 1 2; do
+              echo "Drive download attempt $attempt/2 (90-second limit)."
+              rm -f "$ROM_PATH"
+              if timeout --signal=TERM --kill-after=5s 90s \
+                gdown --quiet --fuzzy "$ROM_URL" -O "$ROM_PATH" \
+                > /tmp/sm64-drive-download.log 2>&1; then
+                success=true
+                break
+              fi
+              echo "::warning::Drive download attempt $attempt failed or timed out."
+              if grep -Eqi 'permission|cannot retrieve the public link|access denied|need access' /tmp/sm64-drive-download.log; then
+                echo "::error::Google Drive denied anonymous access. Use SM64_DRIVE_SERVICE_ACCOUNT_JSON for authenticated downloading."
+                break
+              fi
+            done
+            if [[ "$success" != true ]]; then
+              rm -f "$ROM_PATH"
+              echo "::error::ROM download failed. Verify Drive access or configure authenticated access; no ROM is included in this repository."
+              exit 1
+            fi
+          fi
+
+          python - <<'PY'
+          import hashlib, os, pathlib
+          p = pathlib.Path("app/jni/src/baserom.us.z64")
+          if not p.is_file() or p.stat().st_size != 8 * 1024 * 1024:
+              p.unlink(missing_ok=True)
+              raise SystemExit("Expected an 8 MiB unmodified US SM64 ROM, not HTML or an archive.")
+          expected = os.environ.get("EXPECTED_SHA1", "").strip().lower()
+          if expected and hashlib.sha1(p.read_bytes()).hexdigest() != expected:
+              p.unlink(missing_ok=True)
+              raise SystemExit("ROM SHA-1 did not match SM64_ROM_SHA1.")
+          print("ROM downloaded and size validated (SHA-1 checked when configured).")
+          PY
+
       - name: Install JDK 17 for Android SDK command-line tools
         if: steps.rom.outputs.ready == 'true'
         uses: actions/setup-java@v4
@@ -138,30 +233,6 @@ jobs:
             unzip zip libpng-dev libaudiofile-dev libgl1-mesa-dev \
             libglew-dev libglfw3-dev libx11-dev libasound2-dev libpulse-dev
           echo "::endgroup::"
-
-      - name: Download private ROM from Google Drive
-        if: steps.rom.outputs.ready == 'true'
-        shell: bash
-        env:
-          ROM_URL: ${{ secrets.SM64_ROM_DRIVE_URL }}
-          EXPECTED_SHA1: ${{ secrets.SM64_ROM_SHA1 }}
-        run: |
-          set -euo pipefail
-          python3 -m venv /tmp/sm64-downloader
-          /tmp/sm64-downloader/bin/pip install --disable-pip-version-check --quiet 'gdown==5.2.0'
-          /tmp/sm64-downloader/bin/gdown --quiet --fuzzy \
-            "$ROM_URL" -O app/jni/src/baserom.us.z64
-          python3 - <<'PY'
-          import hashlib, os, pathlib
-          p = pathlib.Path('app/jni/src/baserom.us.z64')
-          if not p.is_file() or p.stat().st_size != 8 * 1024 * 1024:
-              raise SystemExit('Expected an 8 MiB unmodified US SM64 ROM, not an HTML page or archive')
-          actual = hashlib.sha1(p.read_bytes()).hexdigest()
-          expected = os.environ.get('EXPECTED_SHA1', '').strip().lower()
-          if expected and actual != expected:
-              raise SystemExit('ROM SHA-1 did not match SM64_ROM_SHA1')
-          print('ROM downloaded and size validated (SHA-1 validated if configured).')
-          PY
 
       - name: Prepare SDL2
         if: steps.rom.outputs.ready == 'true'
