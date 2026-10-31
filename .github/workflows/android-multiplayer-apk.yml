@@ -1,0 +1,201 @@
+name: SM64 Android multiplayer APK
+
+on:
+  pull_request:
+    branches:
+      - feature/local-multiplayer
+  push:
+    branches:
+      - feature/local-multiplayer
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sm64-android-multiplayer-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-preflight:
+    name: Check multiplayer sources (no ROM)
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout Android base
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          submodules: false
+
+      - name: Checkout the multiplayer game branch
+        uses: actions/checkout@v4
+        with:
+          repository: RonyxDumb/sm64-android-port
+          ref: feature/local-multiplayer
+          path: app/jni/src
+          persist-credentials: false
+
+      - name: Verify project layout and network module
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n getSDL.sh
+          test -f app/jni/src/Android.mk
+          test -f app/jni/src/src/pc/netplay_lan.c
+          test -f app/jni/src/src/pc/netplay_game.c
+          gcc -std=gnu11 -Wall -Wextra -Werror -D__ANDROID__ \
+            -Iapp/jni/src/src/pc -c app/jni/src/src/pc/netplay_lan.c -o /tmp/netplay-android.o
+          gcc -std=gnu11 -Wall -Wextra -Werror \
+            -Iapp/jni/src/src/pc -c app/jni/src/src/pc/netplay_lan.c -o /tmp/netplay-stub.o
+
+  build-apk:
+    name: Build APK (trusted branch + private ROM)
+    needs: source-preflight
+    if: github.event_name == 'push' && github.ref == 'refs/heads/feature/local-multiplayer'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    steps:
+      - name: Check ROM configuration
+        id: rom
+        env:
+          ROM_URL: ${{ secrets.SM64_ROM_DRIVE_URL }}
+        shell: bash
+        run: |
+          if [[ -n "$ROM_URL" ]]; then
+            echo 'ready=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'ready=false' >> "$GITHUB_OUTPUT"
+            echo '::notice::Configure the SM64_ROM_DRIVE_URL repository secret to enable full APK builds.'
+          fi
+
+      - name: Checkout Android base
+        if: steps.rom.outputs.ready == 'true'
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+          persist-credentials: false
+
+      - name: Checkout multiplayer game code
+        if: steps.rom.outputs.ready == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: RonyxDumb/sm64-android-port
+          ref: feature/local-multiplayer
+          path: app/jni/src
+          persist-credentials: false
+
+      - name: Install JDK 11
+        if: steps.rom.outputs.ready == 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '11'
+
+      - name: Set up Android SDK
+        if: steps.rom.outputs.ready == 'true'
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android platforms and NDK
+        if: steps.rom.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager --install 'platforms;android-28' 'build-tools;30.0.3' 'ndk;21.4.7075529'
+
+      - name: Install native build dependencies
+        if: steps.rom.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            build-essential clang cmake pkg-config python3 python3-venv \
+            unzip zip libpng-dev libaudiofile-dev libgl1-mesa-dev \
+            libglew-dev libglfw3-dev libx11-dev libasound2-dev libpulse-dev
+
+      - name: Download private ROM from Google Drive
+        if: steps.rom.outputs.ready == 'true'
+        shell: bash
+        env:
+          ROM_URL: ${{ secrets.SM64_ROM_DRIVE_URL }}
+          EXPECTED_SHA1: ${{ secrets.SM64_ROM_SHA1 }}
+        run: |
+          set -euo pipefail
+          python3 -m venv /tmp/sm64-downloader
+          /tmp/sm64-downloader/bin/pip install --disable-pip-version-check --quiet 'gdown==5.2.0'
+          /tmp/sm64-downloader/bin/gdown --quiet --fuzzy \
+            "$ROM_URL" -O app/jni/src/baserom.us.z64
+          python3 - <<'PY'
+          import hashlib, os, pathlib
+          p = pathlib.Path('app/jni/src/baserom.us.z64')
+          if not p.is_file() or p.stat().st_size != 8 * 1024 * 1024:
+              raise SystemExit('Expected an 8 MiB unmodified US SM64 ROM, not an HTML page or archive')
+          actual = hashlib.sha1(p.read_bytes()).hexdigest()
+          expected = os.environ.get('EXPECTED_SHA1', '').strip().lower()
+          if expected and actual != expected:
+              raise SystemExit('ROM SHA-1 did not match SM64_ROM_SHA1')
+          print('ROM downloaded and size validated (SHA-1 validated if configured).')
+          PY
+
+      - name: Prepare SDL2
+        if: steps.rom.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash getSDL.sh
+
+      - name: Generate assets and build native prerequisites
+        if: steps.rom.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          make -C app/jni/src -j2 VERSION=us
+
+      - name: Compile debug Android APK
+        id: gradle
+        if: steps.rom.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x gradlew
+          ./gradlew --no-daemon --stacktrace assembleDebug
+          test -s app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Check encryption configuration
+        id: archive
+        if: steps.gradle.outcome == 'success'
+        shell: bash
+        env:
+          APK_PASSWORD: ${{ secrets.SM64_APK_ENCRYPTION_PASSWORD }}
+        run: |
+          if [[ -n "$APK_PASSWORD" ]]; then
+            echo 'ready=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'ready=false' >> "$GITHUB_OUTPUT"
+            echo '::notice::APK built, but not uploaded. Set SM64_APK_ENCRYPTION_PASSWORD to upload an encrypted artifact.'
+          fi
+
+      - name: Encrypt APK before uploading
+        if: steps.archive.outputs.ready == 'true'
+        shell: bash
+        env:
+          APK_PASSWORD: ${{ secrets.SM64_APK_ENCRYPTION_PASSWORD }}
+        run: |
+          set -euo pipefail
+          openssl enc -aes-256-cbc -salt -pbkdf2 -iter 200000 \
+            -in app/build/outputs/apk/debug/app-debug.apk \
+            -out sm64-multiplayer.apk.enc -pass env:APK_PASSWORD
+
+      - name: Upload encrypted APK
+        if: steps.archive.outputs.ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sm64-multiplayer-apk-encrypted
+          path: sm64-multiplayer.apk.enc
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Remove ROM from workspace
+        if: always()
+        shell: bash
+        run: rm -f app/jni/src/baserom.us.z64
