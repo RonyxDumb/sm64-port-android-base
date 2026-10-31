@@ -114,14 +114,30 @@ jobs:
 
       - name: Install native build dependencies
         if: steps.rom.outputs.ready == 'true'
+        timeout-minutes: 8
         shell: bash
+        env:
+          DEBIAN_FRONTEND: noninteractive
         run: |
           set -euo pipefail
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends \
+          echo "::group::Refresh APT package lists (with network retries and timeouts)"
+          sudo -E apt-get \
+            -o Acquire::Retries=3 \
+            -o Acquire::http::Timeout=30 \
+            -o Acquire::https::Timeout=30 \
+            update
+          echo "::endgroup::"
+          echo "::group::Install native build dependencies"
+          sudo -E apt-get \
+            -o Acquire::Retries=3 \
+            -o Acquire::http::Timeout=30 \
+            -o Acquire::https::Timeout=30 \
+            -o Dpkg::Use-Pty=0 \
+            install -y --no-install-recommends \
             build-essential clang cmake pkg-config python3 python3-venv \
             unzip zip libpng-dev libaudiofile-dev libgl1-mesa-dev \
             libglew-dev libglfw3-dev libx11-dev libasound2-dev libpulse-dev
+          echo "::endgroup::"
 
       - name: Download private ROM from Google Drive
         if: steps.rom.outputs.ready == 'true'
