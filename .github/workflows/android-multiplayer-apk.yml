@@ -51,7 +51,7 @@ jobs:
   build-apk:
     name: Build APK (trusted branch + private ROM)
     needs: source-preflight
-    if: github.event_name == 'push' && github.ref == 'refs/heads/feature/local-multiplayer'
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/feature/local-multiplayer'
     runs-on: ubuntu-22.04
     timeout-minutes: 90
     steps:
