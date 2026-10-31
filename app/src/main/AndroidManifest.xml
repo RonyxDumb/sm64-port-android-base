@@ -44,6 +44,10 @@
         android:name="android.permission.BLUETOOTH"
         android:maxSdkVersion="30" />
 
+    <!-- Offline local network sockets: no mobile data connection required. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
     <!-- Vibration -->
     <uses-permission android:name="android.permission.VIBRATE" />
 
