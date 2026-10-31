@@ -84,12 +84,12 @@ jobs:
           path: app/jni/src
           persist-credentials: false
 
-      - name: Install JDK 11
+      - name: Install JDK 17 for Android SDK command-line tools
         if: steps.rom.outputs.ready == 'true'
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '11'
+          java-version: '17'
 
       - name: Set up Android SDK
         if: steps.rom.outputs.ready == 'true'
@@ -101,6 +101,13 @@ jobs:
         run: |
           set -euo pipefail
           sdkmanager --install 'platforms;android-28' 'build-tools;30.0.3' 'ndk;21.4.7075529'
+
+      - name: Switch to JDK 11 for legacy Gradle 7.1
+        if: steps.rom.outputs.ready == 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '11'
 
       - name: Install native build dependencies
         if: steps.rom.outputs.ready == 'true'
