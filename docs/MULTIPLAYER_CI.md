@@ -69,3 +69,18 @@ con asset protetti senza le necessarie autorizzazioni.
 L'APK atteso è `app/build/outputs/apk/debug/app-debug.apk`.
 La prima build cloud rimane **da verificare**; gli eventuali errori NDK,
 SDL2 o asset andranno corretti sulla base dei log.
+
+## Integrazione Wi-Fi Direct
+
+Il branch multiplayer comprende ora `LocalDirect.java`, i permessi Wi-Fi/posizione
+richiesti dal target SDK 28 e il bridge JNI richiamato dal gioco. Il submodule
+`app/jni/src` punta a `sm64-android-port@feature/local-multiplayer`: usare
+`git submodule update --init` per il commit fissato, oppure `--remote` solo se si
+vuole intenzionalmente aggiornare il sorgente.
+
+Il preflight esegue anche `tests/run_netplay.sh` del gioco (due processi UDP e
+pacchetti invalidi, senza ROM). Questo verifica il trasporto; non simula il
+framework Wi-Fi Direct Android né certifica una partita completa. I limiti di
+sincronizzazione del mondo sono descritti in `docs/android-local-multiplayer.md`
+nel repository del gioco. I progressi raccolti nella sessione vengono aggiunti
+ai file scelti su entrambi i telefoni.

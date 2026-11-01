@@ -1,4 +1,4 @@
 [submodule "app/jni/src"]
 	path = app/jni/src
-	url = https://github.com/RonyxDumb/sm64-port-android.git
-	branch = master
+	url = https://github.com/RonyxDumb/sm64-android-port.git
+	branch = feature/local-multiplayer

@@ -40,6 +40,7 @@ jobs:
         run: |
           set -euo pipefail
           bash -n getSDL.sh
+          bash app/jni/src/tests/run_netplay.sh
           test -f app/jni/src/Android.mk
           test -f app/jni/src/src/pc/netplay_lan.c
           test -f app/jni/src/src/pc/netplay_game.c
@@ -199,6 +200,14 @@ jobs:
           # Avoid setup-android@v3 requesting the removed legacy 'tools' package.
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" --install 'platforms;android-28' 'build-tools;30.0.3' 'ndk;21.4.7075529' 'platform-tools'
+
+      - name: Compile Android Java frontend against API 28
+        if: steps.rom.outputs.ready == 'true'
+        shell: bash
+        run: |
+          mkdir -p /tmp/sm64-java-check
+          javac -source 8 -target 8 -classpath "$ANDROID_HOME/platforms/android-28/android.jar" \
+            -d /tmp/sm64-java-check $(find app/src/main/java -name '*.java')
 
       - name: Switch to JDK 11 for legacy Gradle 7.1
         if: steps.rom.outputs.ready == 'true'
