@@ -269,37 +269,18 @@ jobs:
           ./gradlew --no-daemon --stacktrace assembleDebug
           test -s app/build/outputs/apk/debug/app-debug.apk
 
-      - name: Check encryption configuration
-        id: archive
+      - name: Prepare installable APK
         if: steps.gradle.outcome == 'success'
         shell: bash
-        env:
-          APK_PASSWORD: ${{ secrets.SM64_APK_ENCRYPTION_PASSWORD }}
         run: |
-          if [[ -n "$APK_PASSWORD" ]]; then
-            echo 'ready=true' >> "$GITHUB_OUTPUT"
-          else
-            echo 'ready=false' >> "$GITHUB_OUTPUT"
-            echo '::notice::APK built, but not uploaded. Set SM64_APK_ENCRYPTION_PASSWORD to upload an encrypted artifact.'
-          fi
+          cp app/build/outputs/apk/debug/app-debug.apk sm64-multiplayer.apk
 
-      - name: Encrypt APK before uploading
-        if: steps.archive.outputs.ready == 'true'
-        shell: bash
-        env:
-          APK_PASSWORD: ${{ secrets.SM64_APK_ENCRYPTION_PASSWORD }}
-        run: |
-          set -euo pipefail
-          openssl enc -aes-256-cbc -salt -pbkdf2 -iter 200000 \
-            -in app/build/outputs/apk/debug/app-debug.apk \
-            -out sm64-multiplayer.apk.enc -pass env:APK_PASSWORD
-
-      - name: Upload encrypted APK
-        if: steps.archive.outputs.ready == 'true'
+      - name: Upload installable APK
+        if: steps.gradle.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: sm64-multiplayer-apk-encrypted
-          path: sm64-multiplayer.apk.enc
+          name: sm64-multiplayer-apk
+          path: sm64-multiplayer.apk
           if-no-files-found: error
           retention-days: 7
 

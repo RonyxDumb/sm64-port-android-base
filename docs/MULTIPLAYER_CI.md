@@ -1,86 +1,46 @@
 # Compilazione automatica Android multiplayer
 
-Questa workflow vive nel **contenitore Gradle** `sm64-port-android-base` e
-utilizza **esclusivamente** `RonyxDumb/sm64-android-port@feature/local-multiplayer`
-come sorgente nativo. Non modifica il port single-player su `main`.
+La workflow lavora su `feature/local-multiplayer` e usa il sorgente
+`RonyxDumb/sm64-android-port@feature/local-multiplayer`.
+Il submodule `app/jni/src` viene aggiornato insieme al runtime.
 
-## Attivazione
+## Configurazione
 
-1. Unire la PR relativa alla CI **soltanto** in `feature/local-multiplayer`,
-   non su `master`.
-2. In `sm64-port-android-base`, aprire
-   **Settings → Secrets and variables → Actions → New repository secret**.
-3. Configurare:
-   - `SM64_ROM_DRIVE_URL` (necessario per compilare): link di download a un
-     **singolo file ROM US** `baserom.us.z64`, non a una cartella né a uno ZIP.
-   - `SM64_ROM_SHA1` (consigliato): SHA-1 atteso del proprio dump ROM.
-   - `SM64_APK_ENCRYPTION_PASSWORD` (facoltativo): password per cifrare l'APK
-     prima di caricarlo negli artifact. Conservare la password offline.
-4. Un nuovo push su `feature/local-multiplayer` avvia il controllo dei
-   sorgenti e, se è configurato il link ROM, la compilazione completa dell'APK.
-   Per un push manuale dopo aver impostato i secret, è sufficiente un normale
-   commit sul branch multiplayer.
+In **Settings → Secrets and variables → Actions**:
 
-## Comportamento e sicurezza
+- `SM64_ROM_DRIVE_URL`: link a un singolo dump ROM US `baserom.us.z64`.
+- `SM64_ROM_SHA1`: SHA-1 atteso, facoltativo.
+- `SM64_DRIVE_SERVICE_ACCOUNT_JSON`: autenticazione per Drive, facoltativa.
+  Senza questo secret il download usa gdown e il file deve consentire accesso anonimo.
 
-- Le PR verso `feature/local-multiplayer` eseguono **solo** il controllo
-  sorgenti senza ROM e senza segreti.
-- La build completa parte **solo** dai push sul branch multiplayer fidato.
-  Senza `SM64_ROM_DRIVE_URL` la build APK viene saltata con un avviso.
-- Il downloader usa `gdown`; un link Google Drive accessibile a «chiunque
-  abbia il link» **non è privato**. Un file Drive con condivisione ristretta
-  normalmente non è scaricabile con `gdown` senza autenticazione aggiuntiva.
-  Non inserire link ROM in README, issue, PR, commit o chat pubbliche.
-- Il workflow verifica che la ROM scaricata sia di 8 MiB e, se fornito,
-  controlla lo SHA-1; la verifica di compatibilità degli asset è poi demandata
-  agli script del port.
-- Il runner è effimero, la ROM non è caricata come artifact e il file viene
-  eliminato dalla cartella di lavoro a fine job.
-- In un **repository pubblico** l'APK può incorporare asset proprietari:
-  per questo **non viene caricato in chiaro**. L'artifact compare soltanto
-  se è impostato `SM64_APK_ENCRYPTION_PASSWORD` e contiene un file cifrato.
-- Questa workflow non prova la giocabilità del multiplayer; prova soltanto
-  il compilatore e, quando eseguita, la generazione dell'APK.
+Non serve più `SM64_APK_ENCRYPTION_PASSWORD`: la workflow pubblica direttamente
+l'APK installabile e non genera file `.enc`.
 
-## Scaricare e decifrare l'APK
+I push sul branch multiplayer avviano la compilazione completa se è configurata
+la ROM. Le PR eseguono soltanto il preflight senza ROM e senza segreti.
 
-Dopo una build riuscita vai in **Actions → SM64 Android multiplayer APK**,
-apri il run e scarica `sm64-multiplayer-apk-encrypted`. Estrai lo ZIP
-dell'artifact. Sul tuo computer esegui (OpenSSL):
+## Scaricare e installare
 
-```bash
-openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 \
-  -in sm64-multiplayer.apk.enc -out sm64-multiplayer.apk
-```
+1. Aprire **Actions → SM64 Android multiplayer APK**.
+2. Aprire una run riuscita e scaricare l'artifact **sm64-multiplayer-apk**.
+3. Estrarre lo ZIP fornito da GitHub Actions.
+4. Aprire **sm64-multiplayer.apk** su Android e installarla.
 
-OpenSSL richiederà la password usata nel secret. Installa e prova l'APK
-soltanto dopo averne verificato la provenienza. Non distribuire la ROM o l'APK
-con asset protetti senza le necessarie autorizzazioni.
+Lo ZIP è il contenitore standard degli artifact GitHub; l'APK al suo interno
+non è cifrata e non richiede password o OpenSSL.
+Gli artifact sono conservati per 7 giorni.
 
-## Ambiente usato
+## Compilazione
 
-- Ubuntu 22.04 runner
-- Java 11 / Gradle wrapper 7.1
-- Android SDK 28, NDK 21.4.7075529
-- SDL2 preparato con `getSDL.sh`
-- Prebuild `make -C app/jni/src -j2 VERSION=us`
-- Gradle `assembleDebug`
+- Ubuntu 22.04, JDK 17 per SDK e controllo Java, JDK 11 per Gradle 7.1.
+- Android API 28, NDK 21.4.7075529, SDL2 2.0.12.
+- Prebuild Linux: `make -C app/jni/src -j2 VERSION=us`.
+- Android: `./gradlew --no-daemon --stacktrace assembleDebug`.
+- Il prebuild richiede anche gli header desktop SDL2, Xrandr e libusb.
+- Il preflight esegue `tests/run_netplay.sh` con due processi UDP e pacchetti invalidi.
 
-L'APK atteso è `app/build/outputs/apk/debug/app-debug.apk`.
-La prima build cloud rimane **da verificare**; gli eventuali errori NDK,
-SDL2 o asset andranno corretti sulla base dei log.
-
-## Integrazione Wi-Fi Direct
-
-Il branch multiplayer comprende ora `LocalDirect.java`, i permessi Wi-Fi/posizione
-richiesti dal target SDK 28 e il bridge JNI richiamato dal gioco. Il submodule
-`app/jni/src` punta a `sm64-android-port@feature/local-multiplayer`: usare
-`git submodule update --init` per il commit fissato, oppure `--remote` solo se si
-vuole intenzionalmente aggiornare il sorgente.
-
-Il preflight esegue anche `tests/run_netplay.sh` del gioco (due processi UDP e
-pacchetti invalidi, senza ROM). Questo verifica il trasporto; non simula il
-framework Wi-Fi Direct Android né certifica una partita completa. I limiti di
-sincronizzazione del mondo sono descritti in `docs/android-local-multiplayer.md`
-nel repository del gioco. I progressi raccolti nella sessione vengono aggiunti
-ai file scelti su entrambi i telefoni.
+La ROM viene verificata, non viene pubblicata come artifact e viene eliminata
+dal runner a fine job. L'APK contiene gli asset generati durante la build.
+Il superamento della build non certifica il funzionamento del multiplayer
+su due telefoni: limiti e procedura di prova sono nel repository del gioco,
+in `docs/android-local-multiplayer.md`.
