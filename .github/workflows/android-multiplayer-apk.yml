@@ -240,7 +240,8 @@ jobs:
             install -y --no-install-recommends \
             build-essential clang cmake pkg-config python3 python3-venv \
             unzip zip libpng-dev libaudiofile-dev libgl1-mesa-dev \
-            libglew-dev libglfw3-dev libx11-dev libasound2-dev libpulse-dev
+            libglew-dev libglfw3-dev libx11-dev libxrandr-dev \
+            libusb-1.0-0-dev libasound2-dev libpulse-dev
           echo "::endgroup::"
 
       - name: Prepare SDL2
@@ -248,6 +249,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          pkg-config --print-errors --exists xrandr libusb-1.0
           bash getSDL.sh
 
       - name: Generate assets and build native prerequisites
