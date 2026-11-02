@@ -27,11 +27,16 @@ jobs:
           persist-credentials: false
           submodules: false
 
+      - name: Read pinned game revision
+        id: game
+        shell: bash
+        run: echo "sha=$(git rev-parse HEAD:app/jni/src)" >> "$GITHUB_OUTPUT"
+
       - name: Checkout the multiplayer game branch
         uses: actions/checkout@v4
         with:
           repository: RonyxDumb/sm64-android-port
-          ref: feature/local-multiplayer
+          ref: ${{ steps.game.outputs.sha }}
           path: app/jni/src
           persist-credentials: false
 
@@ -40,6 +45,7 @@ jobs:
         run: |
           set -euo pipefail
           bash -n getSDL.sh
+          bash tests/run_haptics.sh
           bash app/jni/src/tests/run_netplay.sh
           test -f app/jni/src/Android.mk
           test -f app/jni/src/src/pc/netplay_lan.c
@@ -76,12 +82,18 @@ jobs:
           submodules: false
           persist-credentials: false
 
+      - name: Read pinned game revision
+        id: game
+        if: steps.rom.outputs.ready == 'true'
+        shell: bash
+        run: echo "sha=$(git rev-parse HEAD:app/jni/src)" >> "$GITHUB_OUTPUT"
+
       - name: Checkout multiplayer game code
         if: steps.rom.outputs.ready == 'true'
         uses: actions/checkout@v4
         with:
           repository: RonyxDumb/sm64-android-port
-          ref: feature/local-multiplayer
+          ref: ${{ steps.game.outputs.sha }}
           path: app/jni/src
           persist-credentials: false
 

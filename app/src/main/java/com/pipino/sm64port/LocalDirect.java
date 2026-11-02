@@ -12,11 +12,21 @@ import android.net.NetworkInfo;
 import android.net.wifi.WpsInfo;
 import android.net.wifi.p2p.WifiP2pConfig;
 import android.net.wifi.p2p.WifiP2pManager;
+import android.net.wifi.p2p.WifiP2pDevice;
 import android.net.wifi.p2p.nsd.WifiP2pDnsSdServiceInfo;
 import android.net.wifi.p2p.nsd.WifiP2pDnsSdServiceRequest;
 import android.os.Build;
 import android.os.Handler;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.ArrayList;
+import android.widget.ArrayAdapter;
+import android.widget.ListView;
+import android.widget.LinearLayout;
+import android.widget.TextView;
+import android.view.Gravity;
+import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
 
 /** Wi-Fi Direct discovery only advertises this game's service, never arbitrary peers.
  * Called on UI thread; the SDL thread reads immutable volatile snapshots only. */
@@ -29,6 +39,11 @@ final class LocalDirect {
     private WifiP2pManager.Channel channel;
     private BroadcastReceiver receiver;
     private AlertDialog chooser;
+    private final LinkedHashMap<String, WifiP2pDevice> games = new LinkedHashMap<>();
+    private ArrayAdapter<String> gameNames;
+    private final ArrayList<WifiP2pDevice> gameRows = new ArrayList<>();
+    private int scanRetries;
+    private Runnable pendingScan;
     private boolean active, host, connecting, ownsGroup;
     private int generation, cleanupPending;
     volatile int status; // 0 waiting, 1 group ready, -1 failure
@@ -129,34 +144,85 @@ final class LocalDirect {
         } else {
             manager.setDnsSdResponseListeners(channel, (instance, type, device) -> {
                 if (!active || gen != generation || host || connecting || status != 0 || !SERVICE.equals(instance)) return;
-                if (chooser != null && chooser.isShowing()) return;
-                chooser = new AlertDialog.Builder(activity)
-                        .setTitle("SM64 — Partita vicina")
-                        .setMessage("Connettersi a " + device.deviceName + "? L'altro telefono dovrà accettare la richiesta Android.")
-                        .setNegativeButton("Annulla", (dialog, which) -> {})
-                        .setPositiveButton("Connetti", (dialog, which) -> {
-                            if (!active || gen != generation) return;
-                            WifiP2pConfig config = new WifiP2pConfig();
-                            config.deviceAddress = device.deviceAddress;
-                            config.wps.setup = WpsInfo.PBC;
-                            config.groupOwnerIntent = 0;
-                            connecting = true;
-                            detail = "ACCEPT ON HOST PHONE";
-                            try {
-                                manager.connect(channel, config, listener(gen, "DIRECT CONNECT ERROR", () -> ownsGroup = true));
-                            } catch (SecurityException exception) { fail("WIFI PERMISSION REQUIRED"); }
-                        }).show();
+                games.put(device.deviceAddress, device);
+                showGames(gen);
             }, (domain, record, device) -> {});
             manager.addServiceRequest(channel, WifiP2pDnsSdServiceRequest.newInstance(),
                     listener(gen, "SERVICE REQUEST ERROR", () -> scan(gen)));
         }
     }
 
+    private int dp(int value) { return (int)(value * activity.getResources().getDisplayMetrics().density + .5f); }
+
+    private void showGames(final int gen) {
+        if (chooser == null || !chooser.isShowing()) {
+            LinearLayout content = new LinearLayout(activity);
+            content.setOrientation(LinearLayout.VERTICAL);
+            content.setPadding(dp(18), dp(14), dp(18), dp(6));
+            TextView title = new TextView(activity);
+            title.setText("Partite vicine"); title.setTextSize(18); title.setTextColor(Color.WHITE);
+            content.addView(title);
+            TextView caption = new TextView(activity);
+            caption.setText("Tocca un telefono. L’host confermerà la connessione.");
+            caption.setTextSize(12); caption.setTextColor(0xffabb5ca);
+            caption.setPadding(0, dp(6), 0, dp(8)); content.addView(caption);
+            ListView list = new ListView(activity);
+            gameNames = new ArrayAdapter<String>(activity, android.R.layout.simple_list_item_1) {
+                @Override public android.view.View getView(int position, android.view.View convert, android.view.ViewGroup parent) {
+                    TextView row = (TextView)super.getView(position, convert, parent);
+                    row.setTextColor(Color.WHITE); row.setTextSize(14); row.setMinHeight(dp(48)); return row;
+                }
+            };
+            list.setAdapter(gameNames);
+            content.addView(list, new LinearLayout.LayoutParams(-1, dp(136)));
+            list.setOnItemClickListener((parent, view, index, id) -> {
+                if (!active || gen != generation || connecting || index >= gameRows.size()) return;
+                WifiP2pDevice device = gameRows.get(index);
+                WifiP2pConfig config = new WifiP2pConfig();
+                config.deviceAddress = device.deviceAddress; config.wps.setup = WpsInfo.PBC;
+                config.groupOwnerIntent = 0;
+                connecting = true; ownsGroup = true;
+                detail = "ACCEPT ON HOST PHONE";
+                chooser.dismiss();
+                try {
+                    manager.stopPeerDiscovery(channel, null);
+                    manager.connect(channel, config, listener(gen, "DIRECT CONNECT ERROR", null));
+                } catch (SecurityException exception) { fail("WIFI PERMISSION REQUIRED"); }
+            });
+            chooser = new AlertDialog.Builder(activity).setView(content)
+                    .setNegativeButton("Indietro", (dialog, which) -> fail("DIRECT SELECTION CANCELLED"))
+                    .setNeutralButton("Aggiorna", null).create();
+            chooser.setOnCancelListener(dialog -> fail("DIRECT SELECTION CANCELLED"));
+            chooser.show();
+            chooser.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v -> { scanRetries = 0; scan(gen); });
+            if (chooser.getWindow() != null) {
+                GradientDrawable bg = new GradientDrawable(); bg.setColor(0xff1a2130); bg.setCornerRadius(dp(20));
+                chooser.getWindow().setBackgroundDrawable(bg);
+                chooser.getWindow().setGravity(Gravity.CENTER);
+                chooser.getWindow().setLayout(Math.min(dp(400), activity.getResources().getDisplayMetrics().widthPixels - dp(32)), -2);
+            }
+        }
+        gameRows.clear(); gameRows.addAll(games.values());
+        gameNames.clear();
+        for (WifiP2pDevice device : gameRows)
+            gameNames.add(device.deviceName == null || device.deviceName.isEmpty() ? "Host SM64" : device.deviceName);
+        gameNames.notifyDataSetChanged();
+    }
+
     private void scan(final int gen) {
         if (!active || gen != generation || connecting || status != 0) return;
         try {
-            manager.discoverServices(channel, listener(gen, "DISCOVERY ERROR", null));
-            ui.postDelayed(() -> scan(gen), 8000);
+            manager.discoverServices(channel, new WifiP2pManager.ActionListener() {
+                public void onSuccess() { scanRetries = 0; }
+                public void onFailure(int reason) {
+                    if (!active || gen != generation || connecting || status != 0) return;
+                    // Android briefly reports BUSY while prior discovery stops.
+                    if (reason != WifiP2pManager.BUSY || ++scanRetries > 5) fail("DISCOVERY ERROR " + reason);
+                }
+            });
+            if (pendingScan != null) ui.removeCallbacks(pendingScan);
+            pendingScan = () -> scan(gen);
+            ui.postDelayed(pendingScan, 8000);
         } catch (SecurityException exception) { fail("WIFI PERMISSION REQUIRED"); }
     }
 
@@ -176,7 +242,9 @@ final class LocalDirect {
         active = false;
         ++generation;
         ui.removeCallbacksAndMessages(null);
+        pendingScan = null;
         if (chooser != null) { chooser.dismiss(); chooser = null; }
+        games.clear(); gameRows.clear(); gameNames = null; scanRetries = 0;
         if (receiver != null) { activity.unregisterReceiver(receiver); receiver = null; }
         if (manager != null && channel != null) {
             try {
@@ -187,7 +255,7 @@ final class LocalDirect {
                 if (ownsGroup || connecting) {
                     final WifiP2pManager.Channel oldChannel = channel;
                     ++cleanupPending;
-                    manager.removeGroup(channel, new WifiP2pManager.ActionListener() {
+                    WifiP2pManager.ActionListener cleanup = new WifiP2pManager.ActionListener() {
                         private boolean finished;
                         private void finish() {
                             if (finished) return;
@@ -197,7 +265,12 @@ final class LocalDirect {
                         }
                         public void onSuccess() { finish(); }
                         public void onFailure(int reason) { finish(); }
-                    });
+                    };
+                    // Framework callbacks can be lost after a channel closes.
+                    // A separate handler survives stop() clearing discovery work.
+                    new Handler(activity.getMainLooper()).postDelayed(() -> cleanup.onFailure(0), 3000);
+                    try { manager.removeGroup(channel, cleanup); }
+                    catch (SecurityException exception) { cleanup.onFailure(0); }
                 } else if (Build.VERSION.SDK_INT >= 27) channel.close();
             } catch (SecurityException ignored) {
                 if (Build.VERSION.SDK_INT >= 27) channel.close();

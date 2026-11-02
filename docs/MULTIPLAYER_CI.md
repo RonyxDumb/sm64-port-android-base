@@ -1,7 +1,8 @@
 # Compilazione automatica Android multiplayer
 
 La workflow lavora su `feature/local-multiplayer` e usa il sorgente
-`RonyxDumb/sm64-android-port@feature/local-multiplayer`.
+`RonyxDumb/sm64-android-port` alla revisione esatta indicata dal submodule
+del commit del contenitore.
 Il submodule `app/jni/src` viene aggiornato insieme al runtime.
 
 ## Configurazione
@@ -37,7 +38,11 @@ Gli artifact sono conservati per 7 giorni.
 - Prebuild Linux: `make -C app/jni/src -j2 VERSION=us`.
 - Android: `./gradlew --no-daemon --stacktrace assembleDebug`.
 - Il prebuild richiede anche gli header desktop SDL2, Xrandr e libusb.
-- Il preflight esegue `tests/run_netplay.sh` con due processi UDP e pacchetti invalidi.
+- Il preflight esegue `tests/run_netplay.sh` con due processi UDP, pacchetti invalidi,
+  riconnessione e avatar fra missioni diverse; `tests/run_haptics.sh` verifica
+  durata, ampiezza e limiti del feedback.
+- La UI usa pannelli Android con animazioni, elenco Direct e interruttore persistente
+  «Vibrazione discreta», disponibile anche in pausa.
 
 La ROM viene verificata, non viene pubblicata come artifact e viene eliminata
 dal runner a fine job. L'APK contiene gli asset generati durante la build.
