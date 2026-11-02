@@ -21,7 +21,7 @@ public class sm64portActivity extends SDLActivity
     }
 
     private void requestStartupPermissions() {
-        if (isFinishing() || android.os.Build.VERSION.SDK_INT < 23) return;
+        if (isFinishing() || isDestroyed() || android.os.Build.VERSION.SDK_INT < 23) return;
         java.util.ArrayList<String> missing = new java.util.ArrayList<>();
         for (String permission : AppPermissions.startupPermissions(android.os.Build.VERSION.SDK_INT)) {
             if (checkSelfPermission(permission) != android.content.pm.PackageManager.PERMISSION_GRANTED)
@@ -55,6 +55,7 @@ public class sm64portActivity extends SDLActivity
     protected void onResume() {
         super.onResume();
         if (haptics != null) haptics.setForeground(true);
+        if (direct != null) direct.permissionsChanged();
     }
 
     @Override
@@ -102,7 +103,10 @@ public class sm64portActivity extends SDLActivity
     public void onRequestPermissionsResult(int request, String[] permissions, int[] results) {
         // SDL's callback belongs only to requests initiated by native SDL code.
         // A denied/cancelled startup request must not resolve an unrelated one.
-        if (request == AppPermissions.STARTUP) return;
+        if (request == AppPermissions.STARTUP) {
+            if (direct != null) direct.permissionsChanged();
+            return;
+        }
         super.onRequestPermissionsResult(request, permissions, results);
     }
 

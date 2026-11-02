@@ -25,7 +25,7 @@ import java.util.ArrayList;
 final class LocalDirect {
     private static final String SERVICE = "sm64-local-v3";
     private final Activity activity;
-    private final Handler ui = new Handler();
+    private final Handler ui;
     private WifiP2pManager manager;
     private WifiP2pManager.Channel channel;
     private BroadcastReceiver receiver;
@@ -39,7 +39,21 @@ final class LocalDirect {
     volatile int status; // 0 waiting, 1 group ready, -1 failure
     volatile String address = "", detail = "WIFI DIRECT";
 
-    LocalDirect(Activity activity) { this.activity = activity; }
+    LocalDirect(Activity activity) {
+        this.activity = activity;
+        ui = new Handler(activity.getMainLooper());
+    }
+
+    void permissionsChanged() {
+        if (!active) return;
+        if (Build.VERSION.SDK_INT >= 23 && activity.checkSelfPermission(
+                AppPermissions.wifiPermission(Build.VERSION.SDK_INT)) != PackageManager.PERMISSION_GRANTED) {
+            fail("WIFI PERMISSION DENIED");
+        } else if (status < 0 && detail.contains("PERMISSION")) {
+            // Recover when access is granted in Settings, without another dialog.
+            start(host);
+        }
+    }
 
     void start(boolean asHost) {
         stop();
@@ -81,7 +95,7 @@ final class LocalDirect {
     private void fail(String text) { status = -1; detail = text; }
 
     private void begin() {
-        if (!active) return;
+        if (!active || channel != null) return;
         if (!activity.getPackageManager().hasSystemFeature("android.hardware.wifi.direct")) {
             fail("WIFI DIRECT NOT SUPPORTED"); return;
         }
