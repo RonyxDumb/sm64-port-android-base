@@ -41,8 +41,10 @@ Gli artifact sono conservati per 7 giorni.
 - Il preflight esegue `tests/run_netplay.sh` con due processi UDP, pacchetti invalidi,
   riconnessione e avatar fra missioni diverse; `tests/run_haptics.sh` verifica
   durata, ampiezza e limiti del feedback.
-- La UI usa pannelli Android con animazioni, elenco Direct e interruttore persistente
-  «Vibrazione discreta», disponibile anche in pausa.
+- La UI usa grafica e font originali di SM64, elenco Direct nello stesso menu e
+  impostazione persistente «Vibrazione» con ON/OFF leggibili anche in pausa.
+- Protocollo v3: movimento, stato tangibile, collisioni e spinte tra giocatori.
+  Entrambi i telefoni devono installare la stessa nuova APK.
 
 La ROM viene verificata, non viene pubblicata come artifact e viene eliminata
 dal runner a fine job. L'APK contiene gli asset generati durante la build.

@@ -50,10 +50,10 @@ final class GameHaptics {
                 int a = envelope.amplitude;
                 target.vibrate(VibrationEffect.createWaveform(
                         new long[] { 0, 3, Math.max(2, envelope.duration - 6), 3 },
-                        new int[] { 0, a / 2, a, a / 3 }, -1), attributes);
+                        new int[] { 0, a * 3 / 4, a, a / 2 }, -1), attributes);
             } else {
-                // Motors without amplitude control receive a very short tap.
-                target.vibrate(Math.min(envelope.duration, 12), attributes);
+                // Motors without amplitude control receive a short tap.
+                target.vibrate(Math.min(envelope.duration, 24), attributes);
             }
         } catch (SecurityException | IllegalArgumentException ignored) {
             // A missing/removed controller must never interrupt gameplay.

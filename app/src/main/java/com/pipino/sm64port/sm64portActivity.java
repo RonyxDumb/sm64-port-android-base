@@ -13,11 +13,24 @@ public class sm64portActivity extends SDLActivity
         super.onCreate(state);
         direct = new LocalDirect(this);
         haptics = new GameHaptics(this);
-        localMenu = new LocalMenu(this, mLayout, haptics);
+        localMenu = new LocalMenu(this, mLayout);
     }
 
     public int updateLocalMenu(int page, int selected, int status, int ready, String detail) {
         return localMenu == null ? 0 : localMenu.update(page, selected, status, ready, detail);
+    }
+
+    public int rumbleEnabled() { return haptics != null && haptics.enabled ? 1 : 0; }
+    public void setRumbleEnabled(final int enabled) {
+        runOnUiThread(() -> {
+            if (haptics == null) return;
+            haptics.setEnabled(enabled != 0);
+            if (enabled != 0) haptics.play(6, 65, false);
+        });
+    }
+    public String localDirectGames() { return direct == null ? "" : direct.gamesSnapshot; }
+    public void selectLocalDirectGame(final int index) {
+        runOnUiThread(() -> { if (direct != null) direct.selectGame(index); });
     }
 
     public void rumbleEvent(final int frames, final int strength, final int contact) {
