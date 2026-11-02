@@ -8,6 +8,20 @@ Il multiplayer locale viene sviluppato su `feature/local-multiplayer`. I permess
 
 La compilazione richiede Android SDK Platform **33** (`compileSdkVersion` e `targetSdkVersion` 33); la versione minima resta Android 5.0/API 21. Gli errori di Wi-Fi Direct vengono registrati in Logcat con il tag `SM64Direct`.
 
+## Multiplayer locale — screenshot del gameplay
+
+Queste immagini documentano sessioni di gioco con **Mario e Luigi presenti contemporaneamente** negli ambienti di Super Mario 64, utilizzando il port Android multiplayer.
+
+| Esterno del castello | Atrio del castello |
+| :---: | :---: |
+| ![Mario e Luigi all'esterno del castello nel multiplayer Android](docs/screenshots/multiplayer-outdoor.webp) | ![Mario e Luigi nell'atrio del castello nel multiplayer Android](docs/screenshots/multiplayer-castle.webp) |
+
+**Test su due telefoni Android:** due prospettive della stessa area, con Mario e Luigi visibili sui rispettivi schermi.
+
+![Due telefoni Android che mostrano Mario e Luigi nel castello di Peach](docs/screenshots/multiplayer-two-devices.webp)
+
+*Screenshot forniti durante i test del progetto. Le immagini mostrano la presenza dei due personaggi, ma non costituiscono da sole una verifica di tutte le funzioni di rete o della stabilità del multiplayer.*
+
 # Branch
 
 * `master`: port vanilla di SM64, con pochissime modifiche.
