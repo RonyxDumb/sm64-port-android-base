@@ -1,6 +1,5 @@
 package com.pipino.sm64port;
 
-import android.Manifest;
 import android.app.Activity;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -16,6 +15,7 @@ import android.net.wifi.p2p.nsd.WifiP2pDnsSdServiceInfo;
 import android.net.wifi.p2p.nsd.WifiP2pDnsSdServiceRequest;
 import android.os.Build;
 import android.os.Handler;
+import android.util.Log;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.ArrayList;
@@ -23,7 +23,6 @@ import java.util.ArrayList;
 /** Wi-Fi Direct discovery only advertises this game's service, never arbitrary peers.
  * Called on UI thread; the SDL thread reads immutable volatile snapshots only. */
 final class LocalDirect {
-    static final int PERMISSIONS = 6402;
     private static final String SERVICE = "sm64-local-v3";
     private final Activity activity;
     private final Handler ui = new Handler();
@@ -47,26 +46,34 @@ final class LocalDirect {
         active = true;
         host = asHost;
         status = 0;
-        detail = "ALLOW WIFI PERMISSION";
-        // targetSdk 28 uses the legacy location permission even on Android 13+.
-        // If the target is upgraded, select the new permission at runtime too.
-        String permission = Build.VERSION.SDK_INT >= 33
-                && activity.getApplicationInfo().targetSdkVersion >= 33
-                ? "android.permission.NEARBY_WIFI_DEVICES" : Manifest.permission.ACCESS_FINE_LOCATION;
-        if (Build.VERSION.SDK_INT >= 23 && activity.checkSelfPermission(permission) != PackageManager.PERMISSION_GRANTED) {
-            activity.requestPermissions(new String[] { permission }, PERMISSIONS);
-        } else begin();
+        detail = "INITIALIZING DIRECT";
+        // Startup owns permission dialogs. Revocation or denial must leave the
+        // user in the lobby rather than issuing another request from a button.
+        if (Build.VERSION.SDK_INT >= 23 && activity.checkSelfPermission(
+                AppPermissions.wifiPermission(Build.VERSION.SDK_INT)) != PackageManager.PERMISSION_GRANTED) {
+            fail("WIFI PERMISSION DENIED");
+            return;
+        }
+        safely(generation, () -> begin());
     }
 
-    void permissionResult(int[] results) {
-        if (!active) return;
-        if (results.length == 1 && results[0] == PackageManager.PERMISSION_GRANTED) begin();
-        else fail("WIFI PERMISSION DENIED");
+    private void safely(int gen, Runnable operation) {
+        if (!active || gen != generation || status < 0) return;
+        try { operation.run(); }
+        catch (SecurityException exception) {
+            Log.w("SM64Direct", "Wi-Fi Direct permission was denied or revoked", exception);
+            fail("WIFI PERMISSION REQUIRED");
+        } catch (RuntimeException exception) {
+            // Vendor Wi-Fi services can fail synchronously, even at initialize
+            // or receiver registration, before an ActionListener is installed.
+            Log.w("SM64Direct", "Wi-Fi Direct framework operation failed", exception);
+            fail("WIFI DIRECT UNAVAILABLE");
+        }
     }
 
     private WifiP2pManager.ActionListener listener(final int gen, final String error, final Runnable next) {
         return new WifiP2pManager.ActionListener() {
-            public void onSuccess() { if (active && gen == generation && status >= 0 && next != null) next.run(); }
+            public void onSuccess() { if (next != null) safely(gen, next); }
             public void onFailure(int reason) { if (active && gen == generation) fail(error + " " + reason); }
         };
     }
@@ -80,7 +87,7 @@ final class LocalDirect {
         }
         final int gen = generation;
         if (cleanupPending != 0) {
-            ui.postDelayed(() -> { if (active && gen == generation) begin(); }, 100);
+            ui.postDelayed(() -> safely(gen, () -> begin()), 100);
             return;
         }
         manager = (WifiP2pManager)activity.getSystemService(Context.WIFI_P2P_SERVICE);
@@ -89,7 +96,7 @@ final class LocalDirect {
             if (active && gen == generation) fail("WIFI DIRECT CHANNEL LOST");
         });
         if (channel == null) { fail("WIFI DIRECT CHANNEL ERROR"); return; }
-        receiver = new BroadcastReceiver() {
+        BroadcastReceiver nextReceiver = new BroadcastReceiver() {
             public void onReceive(Context context, Intent intent) {
                 if (!active || gen != generation) return;
                 String action = intent.getAction();
@@ -106,21 +113,20 @@ final class LocalDirect {
         IntentFilter filter = new IntentFilter();
         filter.addAction(WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION);
         filter.addAction(WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION);
-        activity.registerReceiver(receiver, filter);
-        try {
-            manager.requestGroupInfo(channel, group -> {
-                if (!active || gen != generation) return;
+        activity.registerReceiver(nextReceiver, filter);
+        receiver = nextReceiver; // Unregister only after registration succeeded.
+        manager.requestGroupInfo(channel, group -> safely(gen, () -> {
                 if (group != null) { fail("LEAVE EXISTING DIRECT GROUP"); return; }
-                try { discover(gen); } catch (SecurityException exception) { fail("WIFI PERMISSION REQUIRED"); }
-            });
-        } catch (SecurityException exception) { fail("WIFI PERMISSION REQUIRED"); }
+                discover(gen);
+            }));
         ui.postDelayed(() -> {
             if (active && gen == generation && status == 0) fail("DIRECT TIMEOUT  TRY AGAIN");
         }, 120000);
     }
 
     private void discover(final int gen) {
-        detail = host ? "CREATING DIRECT GROUP" : "ENABLE LOCATION AND WIFI";
+        detail = host ? "CREATING DIRECT GROUP" : Build.VERSION.SDK_INT >= 33
+                ? "SEARCHING NEARBY GAMES" : "ENABLE LOCATION AND WIFI";
         if (host) {
             HashMap<String, String> info = new HashMap<>();
             info.put("protocol", "3");
@@ -134,7 +140,8 @@ final class LocalDirect {
             }));
         } else {
             manager.setDnsSdResponseListeners(channel, (instance, type, device) -> {
-                if (!active || gen != generation || host || connecting || status != 0 || !SERVICE.equals(instance)) return;
+                if (!active || gen != generation || host || connecting || status != 0 || !SERVICE.equals(instance)
+                        || device == null || device.deviceAddress == null) return;
                 if (!games.containsKey(device.deviceAddress) && games.size() >= 8) return;
                 games.put(device.deviceAddress, device);
                 gameRows.clear(); gameRows.addAll(games.values());
@@ -163,17 +170,17 @@ final class LocalDirect {
         connecting = ownsGroup = true;
         gamesSnapshot = "";
         detail = "ACCEPT ON HOST PHONE";
-        try {
+        safely(gen, () -> {
             manager.stopPeerDiscovery(channel, null);
             manager.connect(channel, config, listener(gen, "DIRECT CONNECT ERROR", null));
-        } catch (SecurityException exception) { fail("WIFI PERMISSION REQUIRED"); }
+        });
     }
 
     private void scan(final int gen) {
         if (!active || gen != generation || connecting || status != 0) return;
-        try {
+        safely(gen, () -> {
             manager.discoverServices(channel, new WifiP2pManager.ActionListener() {
-                public void onSuccess() { scanRetries = 0; }
+                public void onSuccess() { if (active && gen == generation) scanRetries = 0; }
                 public void onFailure(int reason) {
                     if (!active || gen != generation || connecting || status != 0) return;
                     // Android briefly reports BUSY while prior discovery stops.
@@ -183,19 +190,17 @@ final class LocalDirect {
             if (pendingScan != null) ui.removeCallbacks(pendingScan);
             pendingScan = () -> scan(gen);
             ui.postDelayed(pendingScan, 8000);
-        } catch (SecurityException exception) { fail("WIFI PERMISSION REQUIRED"); }
+        });
     }
 
     private void connectionInfo(final int gen) {
-        try {
-            manager.requestConnectionInfo(channel, info -> {
-                if (!active || gen != generation || status < 0 || !info.groupFormed || info.groupOwnerAddress == null) return;
+        safely(gen, () -> manager.requestConnectionInfo(channel, info -> safely(gen, () -> {
+                if (info == null || !info.groupFormed || info.groupOwnerAddress == null) return;
                 if (info.isGroupOwner != host) { fail("DIRECT ROLE MISMATCH"); return; }
                 address = info.groupOwnerAddress.getHostAddress();
                 detail = host ? "WAITING FOR PLAYER TWO" : "DIRECT GROUP CONNECTED";
                 status = 1;
-            });
-        } catch (SecurityException exception) { fail("WIFI PERMISSION REQUIRED"); }
+            })));
     }
 
     void stop() {
@@ -204,7 +209,11 @@ final class LocalDirect {
         ui.removeCallbacksAndMessages(null);
         pendingScan = null;
         games.clear(); gameRows.clear(); gamesSnapshot = ""; scanRetries = 0;
-        if (receiver != null) { activity.unregisterReceiver(receiver); receiver = null; }
+        if (receiver != null) {
+            try { activity.unregisterReceiver(receiver); }
+            catch (IllegalArgumentException exception) { Log.w("SM64Direct", "Receiver already removed", exception); }
+            receiver = null;
+        }
         if (manager != null && channel != null) {
             try {
                 manager.stopPeerDiscovery(channel, null);
@@ -220,7 +229,7 @@ final class LocalDirect {
                             if (finished) return;
                             finished = true;
                             --cleanupPending;
-                            if (Build.VERSION.SDK_INT >= 27) oldChannel.close();
+                            closeChannel(oldChannel);
                         }
                         public void onSuccess() { finish(); }
                         public void onFailure(int reason) { finish(); }
@@ -229,14 +238,21 @@ final class LocalDirect {
                     // A separate handler survives stop() clearing discovery work.
                     new Handler(activity.getMainLooper()).postDelayed(() -> cleanup.onFailure(0), 3000);
                     try { manager.removeGroup(channel, cleanup); }
-                    catch (SecurityException exception) { cleanup.onFailure(0); }
-                } else if (Build.VERSION.SDK_INT >= 27) channel.close();
-            } catch (SecurityException ignored) {
-                if (Build.VERSION.SDK_INT >= 27) channel.close();
+                    catch (RuntimeException exception) { cleanup.onFailure(0); }
+                } else closeChannel(channel);
+            } catch (RuntimeException exception) {
+                Log.w("SM64Direct", "Wi-Fi Direct cleanup failed", exception);
+                closeChannel(channel);
             }
         }
         manager = null; channel = null;
         connecting = ownsGroup = false;
         status = 0; address = ""; detail = "WIFI DIRECT";
+    }
+
+    private void closeChannel(WifiP2pManager.Channel oldChannel) {
+        if (Build.VERSION.SDK_INT < 27) return;
+        try { oldChannel.close(); }
+        catch (RuntimeException exception) { Log.w("SM64Direct", "Channel already closed", exception); }
     }
 }

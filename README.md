@@ -4,6 +4,10 @@ Questo progetto è un port Android del codice sorgente ricostruito di Super Mari
 
 Include controlli touch multipiattaforma, audio funzionante, salvataggio dei progressi nella memoria interna dell'app e supporto per tastiere e controller esterni.
 
+Il multiplayer locale viene sviluppato su `feature/local-multiplayer`. I permessi vengono richiesti all'avvio: dispositivi Wi-Fi nelle vicinanze e notifiche su Android 13 o successivo; localizzazione approssimativa/precisa su Android 6–12. La localizzazione non viene richiesta su Android 13+, dove Wi-Fi Direct usa il permesso dedicato. Negare le notifiche non impedisce di giocare. I pulsanti «Crea partita» e «Cerca partita» non aprono richieste di permesso; un permesso Wi-Fi negato o revocato viene segnalato nella lobby.
+
+La compilazione richiede Android SDK Platform **33** (`compileSdkVersion` e `targetSdkVersion` 33); la versione minima resta Android 5.0/API 21. Gli errori di Wi-Fi Direct vengono registrati in Logcat con il tag `SM64Direct`.
+
 # Branch
 
 * `master`: port vanilla di SM64, con pochissime modifiche.

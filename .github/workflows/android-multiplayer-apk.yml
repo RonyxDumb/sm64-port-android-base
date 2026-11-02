@@ -46,6 +46,7 @@ jobs:
           set -euo pipefail
           bash -n getSDL.sh
           bash tests/run_haptics.sh
+          bash tests/run_permissions.sh
           bash app/jni/src/tests/run_netplay.sh
           test -f app/jni/src/Android.mk
           test -f app/jni/src/src/pc/netplay_lan.c
@@ -211,14 +212,14 @@ jobs:
           test -x "$SDKMANAGER"
           # Avoid setup-android@v3 requesting the removed legacy 'tools' package.
           yes | "$SDKMANAGER" --licenses >/dev/null || true
-          "$SDKMANAGER" --install 'platforms;android-28' 'build-tools;30.0.3' 'ndk;21.4.7075529' 'platform-tools'
+          "$SDKMANAGER" --install 'platforms;android-33' 'build-tools;30.0.3' 'ndk;21.4.7075529' 'platform-tools'
 
-      - name: Compile Android Java frontend against API 28
+      - name: Compile Android Java frontend against API 33
         if: steps.rom.outputs.ready == 'true'
         shell: bash
         run: |
           mkdir -p /tmp/sm64-java-check
-          javac -source 8 -target 8 -classpath "$ANDROID_HOME/platforms/android-28/android.jar" \
+          javac -source 8 -target 8 -classpath "$ANDROID_HOME/platforms/android-33/android.jar" \
             -d /tmp/sm64-java-check $(find app/src/main/java -name '*.java')
 
       - name: Switch to JDK 11 for legacy Gradle 7.1

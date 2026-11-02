@@ -11,9 +11,23 @@ public class sm64portActivity extends SDLActivity
     @Override
     protected void onCreate(android.os.Bundle state) {
         super.onCreate(state);
+        if (mLayout == null) return; // SDL already displays its library-load error.
         direct = new LocalDirect(this);
         haptics = new GameHaptics(this);
         localMenu = new LocalMenu(this, mLayout);
+        // Wait until the activity's content is attached. Permission dialogs are
+        // shown at launch, before either multiplayer action needs the radio.
+        mLayout.post(() -> requestStartupPermissions());
+    }
+
+    private void requestStartupPermissions() {
+        if (isFinishing() || android.os.Build.VERSION.SDK_INT < 23) return;
+        java.util.ArrayList<String> missing = new java.util.ArrayList<>();
+        for (String permission : AppPermissions.startupPermissions(android.os.Build.VERSION.SDK_INT)) {
+            if (checkSelfPermission(permission) != android.content.pm.PackageManager.PERMISSION_GRANTED)
+                missing.add(permission);
+        }
+        if (!missing.isEmpty()) requestPermissions(missing.toArray(new String[0]), AppPermissions.STARTUP);
     }
 
     public int updateLocalMenu(int page, int selected, int status, int ready, String detail) {
@@ -86,8 +100,10 @@ public class sm64portActivity extends SDLActivity
 
     @Override
     public void onRequestPermissionsResult(int request, String[] permissions, int[] results) {
+        // SDL's callback belongs only to requests initiated by native SDL code.
+        // A denied/cancelled startup request must not resolve an unrelated one.
+        if (request == AppPermissions.STARTUP) return;
         super.onRequestPermissionsResult(request, permissions, results);
-        if (request == LocalDirect.PERMISSIONS && direct != null) direct.permissionResult(results);
     }
 
     @Override
