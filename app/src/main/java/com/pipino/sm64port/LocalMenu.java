@@ -95,7 +95,17 @@ final class LocalMenu extends FrameLayout {
                         : status == 3 ? "Connessione interrotta" : status == 4 ? "Riconnessione…" : "Trova il tuo compagno";
                 TextView heading = label(title, 17, Color.WHITE);
                 heading.setTypeface(null, Typeface.BOLD);
-                panel.addView(heading, new LinearLayout.LayoutParams(-1, dp(26)));
+                LinearLayout header = new LinearLayout(activity);
+                header.setGravity(Gravity.CENTER_VERTICAL);
+                if (page == 2 || page == 4) {
+                    TextView back = label("‹", 28, ACCENT);
+                    back.setGravity(Gravity.CENTER);
+                    back.setContentDescription("Indietro");
+                    back.setOnClickListener(v -> send(3));
+                    header.addView(back, new LinearLayout.LayoutParams(dp(36), dp(36)));
+                }
+                header.addView(heading, new LinearLayout.LayoutParams(0, -1, 1));
+                panel.addView(header, new LinearLayout.LayoutParams(-1, dp(32)));
                 String caption = page == 1 ? "Super Mario 64 · Gioco locale" : page == 4 ? "Scegli come collegare i due telefoni"
                         : page == 2 ? "Mario ospita · Luigi si unisce"
                         : status == 2 ? ((ready & 1) != 0 ? "Tu sei pronto · In attesa del compagno" : "Confermate entrambi per iniziare")
@@ -147,7 +157,6 @@ final class LocalMenu extends FrameLayout {
             if (page != 5) {
                 TextView footer = label(page == 1 ? "A / START  Seleziona" : "A / START  Seleziona     B  Indietro", 11, MUTED);
                 footer.setGravity(Gravity.CENTER);
-                footer.setOnClickListener(v -> { if (page != 1) send(3); });
                 panel.addView(footer, new LinearLayout.LayoutParams(-1, dp(24)));
             }
             selection = -1;
